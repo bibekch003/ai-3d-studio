@@ -23,7 +23,16 @@ export default function AssetsPage() {
     <AppShell
       title="Assets"
       subtitle="Models, textures, HDRIs and audio with licence tracking"
-      actions={<Button size="sm" variant="primary">Upload</Button>}
+      actions={
+        <Button
+          size="sm"
+          variant="subtle"
+          title="Uploads need the API and Supabase Storage. Not connected in this demo build."
+          onClick={() => alert("Uploads require the API service and Supabase Storage.\nThis static demo has no backend, so no file can be stored.")}
+        >
+          Upload (needs API)
+        </Button>
+      }
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
@@ -68,6 +77,9 @@ export default function AssetsPage() {
           </table>
         </div>
 
+        <p className="rounded border border-studio-800 bg-studio-900/60 p-2 text-[10px] leading-relaxed text-neutral-400">
+          This is sample library data. Uploads require the API service and a storage bucket; the static demo cannot accept files.
+        </p>
         <p className="text-[10px] leading-relaxed text-neutral-500">
           Uploads are validated for type and size, stored in Supabase Storage, and recorded with their licence. An asset without a
           licence note is blocked from commercial render presets.
