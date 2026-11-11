@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { Badge, Button } from "@ai3d/ui";
-import { buildDemoScene } from "@ai3d/scene-core";
 import { AppShell } from "@/components/AppShell";
-
-const scene = buildDemoScene();
+import { useStudio } from "@/lib/store";
 
 const LIBRARY_CLIPS = [
   { id: "walk.cycle.01", name: "Walk cycle", frames: 48, kind: "transform", note: "24 fps loop, in-place" },
@@ -17,6 +15,7 @@ const LIBRARY_CLIPS = [
 ];
 
 export default function AnimationPage() {
+  const scene = useStudio((s) => s.scene);
   return (
     <AppShell
       title="Animation Studio"
