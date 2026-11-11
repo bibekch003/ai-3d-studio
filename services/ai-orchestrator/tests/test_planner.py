@@ -105,3 +105,18 @@ def test_unconfigured_adapters_never_fake_success() -> None:
             result = get_adapter(status["task"]).generate({"prompt": "test"})
             assert result.ok is False
             assert result.payload == {}
+
+
+def test_add_object_rule_creates_a_placeholder_prop() -> None:
+    plan = plan_edit("Put a vase on the table.", SCENE)
+    adds = [op for op in plan["operations"] if op["op"] == "add_object"]
+    assert adds, "expected an add_object operation"
+    spec = adds[0]["params"]["object"]
+    assert spec["type"] == "prop"
+    assert "vase" in spec["name"].lower()
+    assert validate_plan(plan, SCENE)["ok"] is True
+
+
+def test_add_object_does_not_duplicate_an_existing_object() -> None:
+    plan = plan_edit("Add the apple.", SCENE)
+    assert not [op for op in plan["operations"] if op["op"] == "add_object"]
