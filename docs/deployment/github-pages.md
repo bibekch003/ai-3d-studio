@@ -23,6 +23,9 @@ Not available on Pages, by design:
 
 Use Pages for a reviewable demo; use `vercel-supabase.md` for the real stack.
 
+> **Current status:** deployed. The site is built and published from `main` by
+> `.github/workflows/deploy-pages.yml`; the first successful run was #17.
+
 ## One-time setup
 
 1. Push the repository to GitHub (default branch `main`).
