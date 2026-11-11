@@ -1,0 +1,64 @@
+name: Deploy static demo (GitHub Pages)
+
+# Publishes the browser-only build: the studio, planner, director and inspector
+# all work client-side against the bundled demo scene. Persistence, rendering and
+# model inference need the API and workers, which Pages cannot host.
+#
+# Enable once: Settings → Pages → Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Static export
+        env:
+          NEXT_STATIC_EXPORT: "true"
+          # Project Pages are served from /<repo>/; change if you rename the repo.
+          NEXT_PUBLIC_BASE_PATH: "/${{ github.event.repository.name }}"
+          NEXT_PUBLIC_PRODUCT_NAME: "AI 3D Studio"
+        run: npm run build -w @ai3d/web
+      - name: Fail if the export is empty
+        run: |
+          test -f apps/web/out/index.html
+          test -f apps/web/out/studio/index.html
+          du -sh apps/web/out
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
