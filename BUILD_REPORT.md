@@ -16,6 +16,24 @@ inspector run client-side against the bundled demo scene. The build job asserts
 `out/index.html` and `out/studio/index.html` exist before deploying, so a green
 run means those routes were produced.
 
+## Refinement pass (11 November 2026, second delivery)
+
+Reported problems and what changed:
+
+| Report | Cause | Fix |
+| --- | --- | --- |
+| "Whatever prompt I type, the boy with apple comes" | The studio always loaded the bundled demo scene; nothing built a scene from a prompt | `buildSceneFromPrompt()` + `buildBlankScene()` in `scene-core`, wired to a scene menu (demo / empty stage / restore saved) and an **AI edit → New scene** tab |
+| "The boy comes automatically and is unchangeable" | Same root cause: no scene lifecycle | New scene replaces the document; Ctrl+Z restores; the scene persists across pages |
+| "Live animation is not working" | The viewport rendered static transforms — clips were never sampled | `sampleScene(scene, frame)` drives the render tree; playback, scrubbing and keyframe clicks all move the objects |
+| "Video is not rendering" | Only the Blender worker could produce video, and it is not connected | In-browser **Record** (WebM via MediaRecorder) and **Still** (PNG) from the studio toolbar, labelled as viewport quality |
+| "Most buttons and features don't work" | Several controls called no-op handlers (`applyOps([])`) or nothing at all | Render engine, fps, resolution, duration, samples, denoise, motion blur, environment fields, sky/fog, character staging, scene restore and settings toggles now act and are recorded in history |
+| "The web is complex" | Ten flat nav items, advanced panels always visible | Navigation grouped (Create / Produce / Account), beginner mode hides gizmos and the history tab, first-run guide explains three entry points |
+| Director "Send to studio" did nothing | The studio never consumed the hand-off | The studio reads the stored plan on mount and builds the scene |
+
+New tests this pass: 15 in `scene-core` (sampling + builder) and 7 in `apps/web`
+(scene lifecycle, settings, keyframes). Totals: **46 scene-core, 17 editor, 15
+web, 35 API, 16 orchestrator, 7 render-worker — 136 automated tests**.
+
 ## Verification evidence
 
 | Check | Command | Result |
