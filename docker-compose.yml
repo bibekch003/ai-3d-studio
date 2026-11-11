@@ -1,0 +1,90 @@
+# Local development stack.
+#   docker compose up --build
+# Web:      http://localhost:3000
+# API:      http://localhost:8000/docs
+# Postgres: localhost:5432 (ai3dstudio / ai3dstudio)
+# Redis:    localhost:6379
+#
+# Blender rendering needs the render-worker image (large); it is behind a
+# profile so the default stack stays light:  docker compose --profile render up
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ai3dstudio
+      POSTGRES_PASSWORD: ai3dstudio
+      POSTGRES_DB: ai3dstudio
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai3dstudio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.api
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql://ai3dstudio:ai3dstudio@postgres:5432/ai3dstudio
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:3000
+      ALLOW_DEV_AUTH: "true"
+      SERVICE_TOKEN: dev-service-token
+      LOG_LEVEL: INFO
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.web
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_PRODUCT_NAME: AI 3D Studio
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+  render-worker:
+    profiles: ["render"]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.render-worker
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      API_BASE_URL: http://api:8000
+      SERVICE_TOKEN: dev-service-token
+      BLENDER_BIN: /usr/bin/blender
+      RENDER_WORK_DIR: /renders
+    volumes: [renders:/renders]
+    depends_on: [redis, api]
+
+  generation-worker:
+    profiles: ["generation"]
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.worker
+      args: { SERVICE_DIR: services/generation-worker, MODULE: generation_worker.worker }
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      API_BASE_URL: http://api:8000
+      SERVICE_TOKEN: dev-service-token
+    depends_on: [redis, api]
+
+volumes:
+  pgdata:
+  redisdata:
+  renders:
