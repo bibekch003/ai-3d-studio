@@ -16,8 +16,8 @@ Not available on Pages, by design:
 
 | Capability | Why |
 | --- | --- |
-| Saving scenes, projects, versions | needs the FastAPI service + Postgres |
-| Blender renders, `.blend` export | needs the render worker |
+| Saving to an account, projects, versions | needs the FastAPI service + Postgres (the demo can save to this browser instead) |
+| Blender renders, `.blend` export | needs the render worker (the demo records a WebM preview from the viewport instead) |
 | Model inference (text-to-3D, motion, TTS) | needs GPU workers |
 | Sign-in | needs Supabase Auth |
 
