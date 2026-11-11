@@ -20,6 +20,9 @@ line matters more than a long feature list.
 | Capability | State |
 | --- | --- |
 | Scene graph, schema 1.1, validation, migrations | **working** (TS + Python), tested |
+| "Describe a scene" → editable scene (set, cast, props, lights, shots, clips) | **working** in the browser |
+| Timeline playback (clip sampling drives the viewport) | **working** |
+| WebM preview recording, PNG stills | **working** — viewport quality, labelled as such |
 | Three.js studio: raycast selection, hover, gizmo, context inspector | **working** in the browser |
 | Natural-language edit planner (deterministic rule engine) | **working**, TS + Python, tested |
 | Plan validation gates (targets, types, locks, preservation, atomicity) | **working**, tested both sides |
@@ -44,8 +47,10 @@ npm install
 npm run dev            # http://localhost:3000 — studio works with no backend
 ```
 
-Open `/studio`. Click the apple, the table, the boy's hair, a light or the
-camera, then use **AI edit**:
+Open `/studio`. Three ways in: click any object in the viewport, use **AI edit →
+New scene** to build a scene from a sentence, or press **Space** to play the
+timeline. With the demo scene loaded, click the apple, the table, the boy's hair,
+a light or the camera, then use **AI edit**:
 
 ```
 Make the table look like old oak wood.
@@ -130,13 +135,15 @@ slower and less accurate.
 
 ```bash
 npm run typecheck      # all TS workspaces
-npm test               # scene-core 31 + editor 17
-npm run build          # Next.js production build (17 routes)
+npm test               # scene-core 46 + editor 17 + web 15
+npm run build          # Next.js production build
 
 cd services/api           && python -m pytest -q   # 35
-cd services/ai-orchestrator && python -m pytest -q # 14
+cd services/ai-orchestrator && python -m pytest -q # 16
 cd services/render-worker && python -m pytest -q   # 7
 ```
+
+136 automated tests in total.
 
 CI (`.github/workflows/ci.yml`) runs all of the above plus a Postgres job that
 applies every migration and asserts RLS is enabled on every public table.
