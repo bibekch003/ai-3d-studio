@@ -3,6 +3,19 @@
 Status of the AI 3D Studio repository as delivered. Written to be checkable: every
 claim below is either a command you can re-run or a file you can open.
 
+## Deployment status
+
+| Target | State |
+| --- | --- |
+| GitHub repository | **live** — https://github.com/bibekch003/ai-3d-studio (public, 163 files) |
+| Static demo on GitHub Pages | **live** — https://bibekch003.github.io/ai-3d-studio/ (workflow run #17, conclusion `success`) |
+| Full stack (API + Postgres + workers) | **not deployed** — needs credentials; runbook unchanged |
+
+The Pages build is the browser-only application: studio, planner, director and
+inspector run client-side against the bundled demo scene. The build job asserts
+`out/index.html` and `out/studio/index.html` exist before deploying, so a green
+run means those routes were produced.
+
 ## Verification evidence
 
 | Check | Command | Result |
