@@ -1,22 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { Badge, Button, TextArea } from "@ai3d/ui";
-import { describeOp, planEdit, type EditPlan } from "@ai3d/scene-core";
+import { useMemo, useState } from "react";
+import { Badge, Button, Tabs, TextArea } from "@ai3d/ui";
+import {
+  buildSceneFromPrompt,
+  describeOp,
+  planEdit,
+  type EditPlan,
+  type ScenePlan,
+} from "@ai3d/scene-core";
 import { useStudio } from "@/lib/store";
 import { api, ApiError } from "@/lib/api";
 import { isApiConfigured } from "@/lib/product";
 
-const EXAMPLES = [
+const EDIT_EXAMPLES = [
   "Make the table look like old oak wood.",
   "Change his hairstyle but preserve his face.",
   "Change the lighting to a sunset atmosphere.",
-  "Replace the plant with a palm tree.",
-  "Make the room look like a futuristic laboratory.",
-  "Change the entire scene to a cinematic style.",
+  "Put a vase on the table.",
+];
+
+const BUILD_EXAMPLES = [
+  "A girl opens a door in a forest at sunset and reads a letter.",
+  "A robot sits in a futuristic laboratory at night, picks up a cup and reads a book.",
+  "A detective walks into an office at dawn and picks up a phone.",
 ];
 
 const PRESERVE_OPTIONS = ["face", "hair", "identity", "materials", "camera", "lighting"] as const;
+
+type Mode = "edit" | "build";
 
 export function AIPanel() {
   const scene = useStudio((s) => s.scene);
@@ -30,15 +42,24 @@ export function AIPanel() {
   const discardPlan = useStudio((s) => s.discardPlan);
   const selectByQuery = useStudio((s) => s.selectByQuery);
   const selectByType = useStudio((s) => s.selectByType);
+  const newScene = useStudio((s) => s.newScene);
+  const notify = useStudio((s) => s.notify);
 
+  const [mode, setMode] = useState<Mode>("edit");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [scopeToSelection, setScopeToSelection] = useState(false);
   const [preserve, setPreserve] = useState<string[]>([]);
   const [selectQuery, setSelectQuery] = useState("");
   const [candidates, setCandidates] = useState<{ id: string; name: string; score: number }[]>([]);
+  const [preview, setPreview] = useState<{ plan: ScenePlan; objects: number; warnings: string[] } | null>(null);
 
-  async function buildPlan() {
+  const selectedName = useMemo(() => {
+    const first = scene.objects.find((o) => o.id === selection[0]);
+    return first?.name ?? null;
+  }, [scene.objects, selection]);
+
+  async function buildEditPlan() {
     const text = prompt.trim();
     if (text.length < 3) return;
     setBusy(true);
@@ -52,11 +73,10 @@ export function AIPanel() {
         source = "server";
       } catch (error) {
         if (error instanceof ApiError && error.status === 422) {
-          useStudio.getState().notify(error.message, "danger");
+          notify(error.message, "danger");
           setBusy(false);
           return;
         }
-        // Fall through to the local planner; the panel labels the producer.
       }
     }
 
@@ -71,157 +91,254 @@ export function AIPanel() {
     setBusy(false);
   }
 
+  function previewScene() {
+    const text = prompt.trim();
+    if (text.length < 8) {
+      notify("Describe the scene in a full sentence", "warning");
+      return;
+    }
+    const { scene: built, plan: builtPlan, warnings } = buildSceneFromPrompt(text);
+    setPreview({ plan: builtPlan, objects: built.objects.length, warnings });
+  }
+
+  function createScene() {
+    const text = prompt.trim();
+    const result = newScene("prompt", text);
+    if (result.ok) {
+      setPreview(null);
+      setPrompt("");
+    }
+  }
+
   return (
     <div className="panel-scroll h-full space-y-3 p-3">
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">AI edit</h2>
-          <Badge tone={planSource === "server" ? "success" : "neutral"}>{planSource === "server" ? "server planner" : "local rule engine"}</Badge>
-        </div>
-        <TextArea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void buildPlan();
-          }}
-          placeholder="Describe the change… e.g. 'Change his hairstyle but preserve his face.'"
-          aria-label="Edit instruction"
-          className="min-h-24 text-xs"
-        />
-        <div className="flex flex-wrap gap-1">
-          {EXAMPLES.slice(0, 4).map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              onClick={() => setPrompt(ex)}
-              className="rounded-full border border-studio-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:border-amber-400/40 hover:text-amber-200"
-            >
-              {ex.replace(/\.$/, "")}
-            </button>
-          ))}
-        </div>
+      <Tabs
+        tabs={[
+          { id: "edit", label: "Edit scene" },
+          { id: "build", label: "New scene" },
+        ]}
+        active={mode}
+        onChange={(id) => {
+          setMode(id as Mode);
+          setPreview(null);
+        }}
+      />
 
-        <details className="rounded-lg border border-studio-800 bg-studio-900/40 p-2">
-          <summary className="cursor-pointer text-[11px] text-neutral-400">Preserve &amp; scope</summary>
-          <div className="mt-2 space-y-2">
-            <div className="flex flex-wrap gap-1">
-              {PRESERVE_OPTIONS.map((prop) => {
-                const on = preserve.includes(prop);
-                return (
-                  <button
-                    key={prop}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => setPreserve((prev) => (on ? prev.filter((p) => p !== prop) : [...prev, prop]))}
-                    className={
-                      on
-                        ? "rounded border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-200"
-                        : "rounded border border-studio-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:text-neutral-200"
-                    }
-                  >
-                    keep {prop}
-                  </button>
-                );
-              })}
+      {mode === "edit" ? (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Change something</h2>
+            <Badge tone={planSource === "server" ? "success" : "neutral"}>{planSource === "server" ? "server planner" : "local engine"}</Badge>
+          </div>
+          <p className="rounded border border-studio-800 bg-studio-850/60 px-2 py-1 text-[10px] text-neutral-400">
+            {selectedName ? (
+              <>Editing <span className="text-amber-300">{selectedName}</span> (and anything else the instruction names).</>
+            ) : (
+              <>Nothing selected — click an object in the viewport, or just name it: &ldquo;the apple&rdquo;.</>
+            )}
+          </p>
+          <TextArea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void buildEditPlan();
+            }}
+            placeholder="e.g. 'Make the table look like old oak wood.'"
+            aria-label="Edit instruction"
+            className="min-h-20 text-xs"
+          />
+          <div className="flex flex-wrap gap-1">
+            {EDIT_EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => setPrompt(ex)}
+                className="rounded-full border border-studio-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:border-amber-400/40 hover:text-amber-200"
+              >
+                {ex.replace(/\.$/, "")}
+              </button>
+            ))}
+          </div>
+
+          <details className="rounded-lg border border-studio-800 bg-studio-900/40 p-2">
+            <summary className="cursor-pointer text-[11px] text-neutral-400">Preserve &amp; scope</summary>
+            <div className="mt-2 space-y-2">
+              <div className="flex flex-wrap gap-1">
+                {PRESERVE_OPTIONS.map((prop) => {
+                  const on = preserve.includes(prop);
+                  return (
+                    <button
+                      key={prop}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setPreserve((prev) => (on ? prev.filter((p) => p !== prop) : [...prev, prop]))}
+                      className={
+                        on
+                          ? "rounded border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] text-amber-200"
+                          : "rounded border border-studio-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:text-neutral-200"
+                      }
+                    >
+                      keep {prop}
+                    </button>
+                  );
+                })}
+              </div>
+              <label className="flex items-center gap-2 text-[10px] text-neutral-400">
+                <input type="checkbox" checked={scopeToSelection} onChange={(e) => setScopeToSelection(e.target.checked)} />
+                Limit targets to the current selection ({selection.length})
+              </label>
             </div>
-            <label className="flex items-center gap-2 text-[10px] text-neutral-400">
-              <input type="checkbox" checked={scopeToSelection} onChange={(e) => setScopeToSelection(e.target.checked)} />
-              Limit targets to the current selection ({selection.length})
-            </label>
-          </div>
-        </details>
+          </details>
 
-        <Button variant="primary" className="w-full" onClick={() => void buildPlan()} loading={busy} disabled={prompt.trim().length < 3}>
-          Plan edit
-        </Button>
-        <p className="text-[10px] leading-relaxed text-neutral-500">
-          {isApiConfigured
-            ? "Plans come from the API when reachable; otherwise the local deterministic planner runs in the browser."
-            : "No API configured: the deterministic rule planner runs locally. It is not an LLM and is labelled as such."}
-        </p>
-      </section>
+          <Button variant="primary" className="w-full" onClick={() => void buildEditPlan()} loading={busy} disabled={prompt.trim().length < 3}>
+            Plan edit
+          </Button>
 
-      {plan ? (
-        <section className="space-y-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.04] p-2">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-[11px] font-medium text-amber-200">{plan.summary}</p>
-              <p className="text-[10px] text-neutral-500">
-                {plan.operations.length} operation{plan.operations.length === 1 ? "" : "s"} · confidence {(plan.confidence * 100).toFixed(0)}% ·{" "}
-                {plan.producer.kind === "deterministic" ? "rule engine" : plan.producer.kind}
-              </p>
+          {plan ? (
+            <div className="space-y-2 rounded-lg border border-amber-400/25 bg-amber-400/[0.04] p-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-medium text-amber-200">{plan.summary}</p>
+                  <p className="text-[10px] text-neutral-500">
+                    {plan.operations.length} operation{plan.operations.length === 1 ? "" : "s"} · confidence{" "}
+                    {(plan.confidence * 100).toFixed(0)}% · {plan.producer.kind === "deterministic" ? "rule engine" : plan.producer.kind}
+                  </p>
+                </div>
+                <Badge tone={plan.confidence >= 0.7 ? "success" : plan.confidence >= 0.5 ? "warning" : "danger"}>
+                  {plan.confidence >= 0.7 ? "high" : plan.confidence >= 0.5 ? "review" : "low"}
+                </Badge>
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-neutral-500">Targets</p>
+                <ul className="mt-1 space-y-0.5">
+                  {plan.targets.length ? (
+                    plan.targets.map((t) => (
+                      <li key={t.object_id} className="flex justify-between gap-2 text-[10px] text-neutral-300">
+                        <span className="truncate">{t.name}</span>
+                        <span className="shrink-0 text-neutral-500">{t.type}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-[10px] text-neutral-500">Scene-level change</li>
+                  )}
+                </ul>
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-neutral-500">Operations</p>
+                <ul className="mt-1 space-y-0.5 font-mono text-[10px] text-neutral-400">
+                  {plan.operations.map((op, i) => (
+                    <li key={`${op.op}-${i}`} className="truncate">
+                      <span className="text-amber-300">{op.op}</span> ·{" "}
+                      {describeOp(op, plan.targets.find((t) => t.object_id === op.target_id)?.name ?? "scene")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {plan.preserve.properties.length ? (
+                <p className="text-[10px] text-sky-300">Preserving: {plan.preserve.properties.join(", ")}</p>
+              ) : null}
+
+              {planErrors.length ? (
+                <ul className="space-y-1 rounded border border-red-500/30 bg-red-950/40 p-1.5">
+                  {planErrors.map((err, i) => (
+                    <li key={i} className="text-[10px] leading-relaxed text-red-300">✕ {err.message}</li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {[...new Set([...planWarnings.map((w) => w.message), ...plan.warnings])].length ? (
+                <ul className="space-y-1">
+                  {[...new Set([...planWarnings.map((w) => w.message), ...plan.warnings])].map((warning, i) => (
+                    <li key={i} className="text-[10px] leading-relaxed text-amber-300/90">! {warning}</li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="primary" size="sm" className="flex-1" disabled={planErrors.length > 0 || plan.operations.length === 0} onClick={() => applyPendingPlan()}>
+                  Apply
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => discardPlan()}>
+                  Discard
+                </Button>
+              </div>
             </div>
-            <Badge tone={plan.confidence >= 0.7 ? "success" : plan.confidence >= 0.5 ? "warning" : "danger"}>
-              {plan.confidence >= 0.7 ? "high" : plan.confidence >= 0.5 ? "review" : "low"}
-            </Badge>
+          ) : null}
+
+          <p className="text-[10px] leading-relaxed text-neutral-500">
+            {isApiConfigured
+              ? "Plans come from the API when reachable; otherwise the local deterministic planner runs in the browser."
+              : "No API configured: the deterministic rule planner runs locally. It is not an LLM and is labelled as such."}
+          </p>
+        </section>
+      ) : (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Describe a whole scene</h2>
+          <p className="text-[10px] leading-relaxed text-neutral-500">
+            Builds a new editable scene — set, cast, props, lights, cameras, shots and an entrance animation — from your
+            description. Replaces the current scene (undo with Ctrl+Z).
+          </p>
+          <TextArea
+            value={prompt}
+            onChange={(e) => {
+              setPrompt(e.target.value);
+              setPreview(null);
+            }}
+            placeholder="e.g. 'A girl opens a door in a forest at sunset and reads a letter.'"
+            aria-label="Scene description"
+            className="min-h-24 text-xs"
+          />
+          <div className="flex flex-wrap gap-1">
+            {BUILD_EXAMPLES.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => {
+                  setPrompt(ex);
+                  setPreview(null);
+                }}
+                className="rounded-full border border-studio-700 px-2 py-0.5 text-[10px] text-neutral-400 hover:border-amber-400/40 hover:text-amber-200"
+              >
+                {ex.slice(0, 34)}…
+              </button>
+            ))}
           </div>
 
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Targets</p>
-            <ul className="mt-1 space-y-0.5">
-              {plan.targets.length ? (
-                plan.targets.map((t) => (
-                  <li key={t.object_id} className="flex justify-between gap-2 text-[10px] text-neutral-300">
-                    <span className="truncate">{t.name}</span>
-                    <span className="shrink-0 text-neutral-500">{t.type}</span>
-                  </li>
-                ))
-              ) : (
-                <li className="text-[10px] text-neutral-500">Scene-level change</li>
-              )}
-            </ul>
-          </div>
-
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-neutral-500">Operations</p>
-            <ul className="mt-1 space-y-0.5 font-mono text-[10px] text-neutral-400">
-              {plan.operations.map((op, i) => (
-                <li key={`${op.op}-${i}`} className="truncate">
-                  <span className="text-amber-300">{op.op}</span> · {describeOp(op, plan.targets.find((t) => t.object_id === op.target_id)?.name ?? "scene")}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {plan.preserve.properties.length ? (
-            <p className="text-[10px] text-sky-300">Preserving: {plan.preserve.properties.join(", ")}</p>
+          {preview ? (
+            <div className="space-y-1 rounded-lg border border-studio-700 bg-studio-900/60 p-2">
+              <p className="text-[11px] text-neutral-200">{preview.plan.logline}</p>
+              <dl className="grid grid-cols-2 gap-1 text-[10px] text-neutral-400">
+                <div>Objects: <span className="text-neutral-200">{preview.objects}</span></div>
+                <div>Shots: <span className="text-neutral-200">{preview.plan.shots.length}</span></div>
+                <div>Cast: <span className="text-neutral-200">{preview.plan.characters.map((c) => c.name).join(", ")}</span></div>
+                <div>Set: <span className="text-neutral-200">{preview.plan.environment.preset_id}</span></div>
+              </dl>
+              {preview.warnings.length ? (
+                <ul className="space-y-0.5">
+                  {preview.warnings.slice(0, 3).map((w, i) => (
+                    <li key={i} className="text-[10px] text-amber-300/90">! {w}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           ) : null}
 
-          {planErrors.length ? (
-            <ul className="space-y-1 rounded border border-red-500/30 bg-red-950/40 p-1.5">
-              {planErrors.map((err, i) => (
-                <li key={i} className="text-[10px] leading-relaxed text-red-300">✕ {err.message}</li>
-              ))}
-            </ul>
-          ) : null}
-
-          {(planWarnings.length || planWarnings.length === 0) && plan.warnings.length ? (
-            <ul className="space-y-1">
-              {[...new Set([...planWarnings.map((w) => w.message), ...plan.warnings])].map((warning, i) => (
-                <li key={i} className="text-[10px] leading-relaxed text-amber-300/90">! {warning}</li>
-              ))}
-            </ul>
-          ) : null}
-
-          {plan.requires_confirmation ? (
-            <p className="rounded border border-amber-500/30 bg-amber-500/10 p-1.5 text-[10px] text-amber-200">
-              This plan asks for confirmation before it changes anything.
-            </p>
-          ) : null}
-
-          <div className="flex gap-2 pt-1">
-            <Button variant="primary" size="sm" className="flex-1" disabled={planErrors.length > 0 || plan.operations.length === 0} onClick={() => applyPendingPlan()}>
-              Apply
+          <div className="flex gap-2">
+            <Button variant="secondary" className="flex-1" onClick={previewScene} disabled={prompt.trim().length < 8}>
+              Preview
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => discardPlan()}>
-              Discard
+            <Button variant="primary" className="flex-1" onClick={createScene} disabled={prompt.trim().length < 8}>
+              Create scene
             </Button>
           </div>
         </section>
-      ) : null}
+      )}
 
       <section className="space-y-2 border-t border-studio-800 pt-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">AI selection</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Find objects</h2>
         <div className="flex gap-1">
           <input
             value={selectQuery}
@@ -229,7 +346,7 @@ export function AIPanel() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && selectQuery.trim()) setCandidates(selectByQuery(selectQuery));
             }}
-            placeholder="the apple, his hair, all plants"
+            placeholder="the apple, his hair, all lights"
             aria-label="Select by description"
             className="min-w-0 flex-1 rounded border border-studio-700 bg-studio-950 px-2 py-1 text-[11px] text-neutral-200 placeholder:text-neutral-600 focus:border-amber-400 focus:outline-none"
           />
@@ -259,7 +376,6 @@ export function AIPanel() {
             ["Lights", () => selectByType("light")],
             ["Props", () => selectByType("prop")],
             ["Cameras", () => selectByType("camera")],
-            ["Everything", () => selectByType(["character", "prop", "furniture", "plant", "light", "camera", "environment"])],
           ].map(([label, fn]) => (
             <button
               key={String(label)}
