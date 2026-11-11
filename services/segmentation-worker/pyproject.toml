@@ -1,0 +1,6 @@
+[project]
+name = "segmentation-worker"
+version = "0.1.0"
+description = "Image/video segmentation worker (SAM 2.1 adapter) for AI 3D Studio"
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.27", "redis>=5.0"]
