@@ -15,9 +15,14 @@ export default function DashboardPage() {
       title="Home"
       subtitle={`${productName} · demo workspace`}
       actions={
-        <Link href="/studio" className="rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-neutral-950 hover:bg-amber-300">
-          Open studio
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/ai-director" className="rounded-md border border-studio-700 px-3 py-1.5 text-xs text-neutral-200 hover:bg-studio-800">
+            Describe a scene
+          </Link>
+          <Link href="/studio" className="rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-neutral-950 hover:bg-amber-300">
+            Open studio
+          </Link>
+        </div>
       }
     >
       <div className="space-y-5">
