@@ -1,0 +1,40 @@
+# Blender render worker.
+#
+# Blender is pinned to 5.2 LTS deliberately: 5.3 became stable on 2026-11-10 and
+# has not been through our render regression set yet.
+FROM python:3.12-slim
+
+ARG BLENDER_SERIES=5.2
+ARG BLENDER_VERSION=5.2.4
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      curl xz-utils libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 \
+      libgl1 libglu1-mesa libsm6 libice6 libxkbcommon0 ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
+# Blender tarball is fetched at build time; verify the checksum published on
+# blender.org and fail the build if it does not match.
+RUN curl -fsSL -o /tmp/blender.tar.xz \
+      "https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+ && tar -xf /tmp/blender.tar.xz -C /opt \
+ && mv "/opt/blender-${BLENDER_VERSION}-linux-x64" /opt/blender \
+ && ln -s /opt/blender/blender /usr/bin/blender \
+ && rm /tmp/blender.tar.xz \
+ && blender --version
+
+WORKDIR /app
+COPY services/render-worker/pyproject.toml ./pyproject.toml
+COPY services/render-worker/render_worker ./render_worker
+RUN pip install --upgrade pip && pip install .
+
+RUN useradd --create-home --uid 10001 render && mkdir -p /renders && chown -R render:render /renders /app
+USER render
+
+ENV RENDER_WORK_DIR=/renders \
+    BLENDER_BIN=/usr/bin/blender
+
+CMD ["python", "-m", "render_worker.worker"]

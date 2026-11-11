@@ -1,0 +1,28 @@
+# Next.js standalone build.
+FROM node:20-alpine AS deps
+WORKDIR /repo
+COPY package.json package-lock.json* ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/scene-core/package.json packages/scene-core/package.json
+COPY packages/editor/package.json packages/editor/package.json
+COPY packages/shared-types/package.json packages/shared-types/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN npm ci --no-audit --no-fund
+
+FROM node:20-alpine AS builder
+WORKDIR /repo
+COPY --from=deps /repo/node_modules ./node_modules
+COPY . .
+RUN npm run build -w @ai3d/web
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup -g 10001 nodejs && adduser -u 10001 -G nodejs -S nextjs
+COPY --from=builder /repo/apps/web/.next ./.next
+COPY --from=builder /repo/apps/web/public ./public
+COPY --from=builder /repo/apps/web/package.json ./package.json
+COPY --from=builder /repo/node_modules ./node_modules
+USER nextjs
+EXPOSE 3000
+CMD ["npx", "next", "start", "-p", "3000"]

@@ -1,0 +1,15 @@
+# Generic Python worker image (generation / segmentation).
+ARG SERVICE_DIR=services/generation-worker
+ARG MODULE=generation_worker.worker
+
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+COPY ${SERVICE_DIR}/pyproject.toml ./pyproject.toml
+COPY ${SERVICE_DIR} ./service
+COPY services/ai-orchestrator ./ai-orchestrator
+RUN pip install --upgrade pip && pip install ./service ./ai-orchestrator
+RUN useradd --create-home --uid 10001 worker
+USER worker
+CMD ["sh", "-c", "python -m ${MODULE}"]
