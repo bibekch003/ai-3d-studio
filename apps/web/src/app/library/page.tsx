@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Badge, Tabs } from "@ai3d/ui";
-import { MATERIAL_PRESETS, buildDemoScene } from "@ai3d/scene-core";
+import { MATERIAL_PRESETS } from "@ai3d/scene-core";
 import { AppShell } from "@/components/AppShell";
+import { useStudio } from "@/lib/store";
 
 const ENVIRONMENT_PRESETS = [
   { id: "room.domestic.small", name: "Small domestic room", kind: "interior", note: "3 walls, window, 6×3×6 m" },
@@ -18,7 +19,7 @@ const ENVIRONMENT_PRESETS = [
 
 export default function LibraryPage() {
   const [tab, setTab] = useState("materials");
-  const scene = buildDemoScene();
+  const scene = useStudio((s) => s.scene);
 
   return (
     <AppShell title="Library" subtitle="Shared materials, environment recipes and clip presets">
