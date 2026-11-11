@@ -377,6 +377,37 @@ export function planEdit(prompt: string, scene: SceneDocument, opts: PlannerOpti
     }
   }
 
+  /* ------------------------------- add prop ------------------------------ */
+  // "put a vase on the table", "add a chair", "create a lamp near the door"
+  const addMatch = lower.match(
+    /\b(?:add|create|put|place|insert|spawn)\s+(?:a\s+|an\s+|the\s+)?([a-z0-9 _-]{3,30})/,
+  );
+  if (addMatch?.[1] && !replaceMatch) {
+    const noun = addMatch[1].split(/\s+(?:on|in|at|near|next|beside|to)\b/)[0]!.trim();
+    const existing = resolve(scene, noun, opts.scope).object;
+    if (existing) {
+      warnings.push(`"${noun}" already exists as "${existing.name}"; select it instead of adding a duplicate.`);
+      addTarget(existing, "already in the scene", 0.7);
+    } else {
+      const label = noun.replace(/\b\w/g, (c) => c.toUpperCase());
+      operations.push({
+        op: "add_object",
+        target_id: null,
+        params: {
+          object: {
+            name: label,
+            type: "prop",
+            geometry: { kind: "primitive", primitive: "box", params: { width: 0.2, height: 0.2, depth: 0.2 } },
+            tags: ["prop", "ai_added"],
+            transform: { position: [0.4, 0.8, -0.6] },
+          },
+          parent_id: null,
+        },
+      });
+      warnings.push(`"${label}" is a placeholder box; attach a real asset in Assets to refine it.`);
+    }
+  }
+
   /* --------------------------- visibility / misc ------------------------- */
   if (/\b(hide|show|unhide)\b/.test(lower)) {
     const noun = nounAfter(lower, ["hide", "show", "unhide"]);
