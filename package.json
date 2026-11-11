@@ -1,0 +1,25 @@
+{
+  "name": "ai-3d-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 3D Studio - AI-assisted 3D filmmaking and animation platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @ai3d/web",
+    "build": "npm run build -w @ai3d/web",
+    "start": "npm run start -w @ai3d/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:web": "npm run test -w @ai3d/web",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}
