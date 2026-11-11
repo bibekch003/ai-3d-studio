@@ -6,17 +6,32 @@ import { useState } from "react";
 import { cn } from "@ai3d/ui";
 import { productName } from "@/lib/product";
 
-const NAV = [
-  { href: "/dashboard", label: "Home", icon: "▦" },
-  { href: "/projects", label: "Projects", icon: "▤" },
-  { href: "/studio", label: "Studio", icon: "◧" },
-  { href: "/ai-director", label: "AI Director", icon: "✦" },
-  { href: "/characters", label: "Characters", icon: "☺" },
-  { href: "/assets", label: "Assets", icon: "◈" },
-  { href: "/animation", label: "Animation", icon: "◷" },
-  { href: "/rendering", label: "Rendering", icon: "▣" },
-  { href: "/library", label: "Library", icon: "▥" },
-  { href: "/settings", label: "Settings", icon: "⚙" },
+const NAV_GROUPS: { label: string; items: { href: string; label: string; icon: string }[] }[] = [
+  {
+    label: "Create",
+    items: [
+      { href: "/studio", label: "Studio", icon: "◧" },
+      { href: "/ai-director", label: "AI Director", icon: "✦" },
+      { href: "/characters", label: "Characters", icon: "☺" },
+    ],
+  },
+  {
+    label: "Produce",
+    items: [
+      { href: "/animation", label: "Animation", icon: "◷" },
+      { href: "/rendering", label: "Rendering", icon: "▣" },
+      { href: "/assets", label: "Assets", icon: "◈" },
+      { href: "/library", label: "Library", icon: "▥" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { href: "/dashboard", label: "Home", icon: "▦" },
+      { href: "/projects", label: "Projects", icon: "▤" },
+      { href: "/settings", label: "Settings", icon: "⚙" },
+    ],
+  },
 ];
 
 export function AppShell({
@@ -47,26 +62,33 @@ export function AppShell({
           <span className="grid size-6 place-items-center rounded-md bg-amber-400 text-[13px] font-black text-neutral-950">3D</span>
           <span className="truncate text-sm font-semibold text-neutral-100">{productName}</span>
         </div>
-        <nav className="space-y-0.5 p-2">
-          {NAV.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors",
-                  active ? "bg-studio-800 text-neutral-100" : "text-neutral-400 hover:bg-studio-850 hover:text-neutral-200",
-                )}
-              >
-                <span aria-hidden className={cn("text-xs", active ? "text-amber-400" : "text-neutral-500")}>
-                  {item.icon}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="panel-scroll space-y-3 p-2">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              <p className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-neutral-600">{group.label}</p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors",
+                        active ? "bg-studio-800 text-neutral-100" : "text-neutral-400 hover:bg-studio-850 hover:text-neutral-200",
+                      )}
+                    >
+                      <span aria-hidden className={cn("text-xs", active ? "text-amber-400" : "text-neutral-500")}>
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
         <div className="mt-4 border-t border-studio-800 p-3 text-2xs leading-relaxed text-neutral-500">
           <p className="font-medium text-neutral-400">Local workspace</p>
