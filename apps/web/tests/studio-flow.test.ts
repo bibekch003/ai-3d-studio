@@ -88,3 +88,91 @@ describe("studio store", () => {
     expect(candidates[0]?.id).toBe("obj_apple");
   });
 });
+
+describe("scene lifecycle", () => {
+  beforeEach(reset);
+
+  it("builds a new scene from a description instead of reloading the demo", () => {
+    const result = useStudio.getState().newScene("prompt", "A girl opens a door in a forest at sunset and reads a letter.");
+    expect(result.ok).toBe(true);
+    const scene = useStudio.getState().scene;
+    expect(scene.objects.some((o) => o.name.toLowerCase().includes("boy"))).toBe(false);
+    expect(scene.objects.some((o) => o.id === "chr_lead")).toBe(true);
+    expect(scene.environment.time_of_day).toBe("sunset");
+    expect(useStudio.getState().sceneSource).toBe("prompt");
+    expect(useStudio.getState().selection).toEqual([]);
+  });
+
+  it("creates an empty stage with no cast", () => {
+    useStudio.getState().newScene("blank");
+    const scene = useStudio.getState().scene;
+    expect(scene.objects.some((o) => o.type === "character")).toBe(false);
+    expect(useStudio.getState().sceneSource).toBe("blank");
+  });
+
+  it("refuses a description that is too short", () => {
+    const result = useStudio.getState().newScene("prompt", "boy");
+    expect(result.ok).toBe(false);
+  });
+
+  it("can go back to the demo scene", () => {
+    useStudio.getState().newScene("blank");
+    useStudio.getState().newScene("demo");
+    expect(useStudio.getState().scene.objects.some((o) => o.id === "chr_boy")).toBe(true);
+  });
+
+  it("patches render settings and bumps the revision", () => {
+    const before = useStudio.getState().scene;
+    useStudio.getState().patchSettings({ fps: 30, render_engine: "cycles" }, "Render engine");
+    const after = useStudio.getState().scene;
+    expect(after.settings.fps).toBe(30);
+    expect(after.settings.render_engine).toBe("cycles");
+    expect(after.revision).toBe(before.revision + 1);
+    useStudio.getState().undo();
+    expect(useStudio.getState().scene.settings.fps).toBe(before.settings.fps);
+  });
+
+  it("patches the environment without touching objects", () => {
+    const before = useStudio.getState().scene;
+    useStudio.getState().patchEnvironment({ time_of_day: "night" }, "Time of day");
+    const after = useStudio.getState().scene;
+    expect(after.environment.time_of_day).toBe("night");
+    expect(after.objects.length).toBe(before.objects.length);
+  });
+
+  it("adds a keyframe through the inspector path", () => {
+    const scene = useStudio.getState().scene;
+    const apple = scene.objects.find((o) => o.id === "obj_apple")!;
+    const ok = useStudio.getState().applyOps(
+      [
+        {
+          op: "add_animation",
+          target_id: apple.id,
+          params: {
+            clip: {
+              name: "Apple bob",
+              kind: "transform",
+              start_frame: 0,
+              end_frame: 48,
+              loop: false,
+              source: { kind: "manual", model_id: null },
+              tracks: [],
+            },
+          },
+        },
+      ],
+      "New clip",
+    );
+    expect(ok).toBe(true);
+    const clip = useStudio.getState().scene.animations.find((c) => c.name === "Apple bob")!;
+    expect(clip).toBeDefined();
+    const keyed = useStudio.getState().applyOps(
+      [{ op: "add_keyframe", target_id: apple.id, params: { clip_id: clip.id, channel: "transform.position", frame: 24, value: [1, 1.2, -1.4] } }],
+      "Keyframe",
+    );
+    expect(keyed).toBe(true);
+    const track = useStudio.getState().scene.animations.find((c) => c.id === clip.id)!.tracks[0]!;
+    expect(track.keyframes).toHaveLength(1);
+    expect(track.keyframes[0]!.frame).toBe(24);
+  });
+});
