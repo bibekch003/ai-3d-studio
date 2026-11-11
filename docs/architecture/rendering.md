@@ -1,6 +1,14 @@
 # Rendering and export
 
-## Path
+## Two paths
+
+**Browser preview (works with no backend).** The studio captures the WebGL
+drawing buffer with `canvas.captureStream()` and `MediaRecorder` while the
+timeline plays, producing a WebM file; `toDataURL` produces PNG stills. This is
+honest about being viewport quality: no ray tracing, denoising or motion blur.
+It exists so "render" produces a real file before any worker is connected.
+
+**Blender (authoritative).**
 
 ```
 scene document (jsonb)
