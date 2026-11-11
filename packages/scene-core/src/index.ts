@@ -8,3 +8,5 @@ export * from "./edit-plan.js";
 export * from "./demo.js";
 export * from "./planner.js";
 export * from "./director.js";
+export * from "./animation.js";
+export * from "./scene-builder.js";
