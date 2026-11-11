@@ -1,0 +1,40 @@
+# Render-style service definitions. Replace <owner> before use.
+services:
+  - type: web
+    name: ai3d-api
+    runtime: docker
+    dockerfilePath: ./infrastructure/docker/Dockerfile.api
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOW_DEV_AUTH
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SERVICE_TOKEN
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: worker
+    name: ai3d-render-worker
+    runtime: docker
+    dockerfilePath: ./infrastructure/docker/Dockerfile.render-worker
+    plan: standard
+    envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: API_BASE_URL
+        sync: false
+      - key: SERVICE_TOKEN
+        sync: false
+      - key: RENDER_WORK_DIR
+        value: /renders
