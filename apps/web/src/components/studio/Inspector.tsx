@@ -1,37 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Badge, Field, SectionTitle, Select, Slider, TextInput, Toggle } from "@ai3d/ui";
-import { objectPath, sceneStats, type CharacterPatch, type SceneObject } from "@ai3d/scene-core";
+import { Badge, Button, Field, SectionTitle, Select, Slider, TextInput, Toggle } from "@ai3d/ui";
+import { indexScene, objectPath, sceneStats, type CharacterPatch, type SceneObject } from "@ai3d/scene-core";
 import { useStudio } from "@/lib/store";
-
-function NumberField({
-  label,
-  value,
-  step = 0.01,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  step?: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex items-center gap-2">
-      <span className="w-16 shrink-0 text-2xs text-neutral-500">{label}</span>
-      <input
-        type="number"
-        value={Number.isFinite(value) ? Number(value.toFixed(4)) : 0}
-        step={step}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (Number.isFinite(next)) onChange(next);
-        }}
-        className="w-full rounded border border-studio-700 bg-studio-950 px-1.5 py-1 font-mono text-2xs text-neutral-200 focus:border-amber-400 focus:outline-none"
-      />
-    </label>
-  );
-}
 
 function VectorField({
   label,
@@ -47,7 +19,10 @@ function VectorField({
   const factor = degrees ? Math.PI / 180 : 1;
   return (
     <div className="space-y-1">
-      <p className="text-2xs text-neutral-500">{label}{degrees ? " (°)" : ""}</p>
+      <p className="text-2xs text-neutral-500">
+        {label}
+        {degrees ? " (°)" : ""}
+      </p>
       <div className="grid grid-cols-3 gap-1">
         {(["X", "Y", "Z"] as const).map((axis, i) => (
           <label key={axis} className="flex items-center gap-1 rounded border border-studio-700 bg-studio-950 px-1">
@@ -104,9 +79,7 @@ function MaterialSection({ obj }: { obj: SceneObject }) {
       </div>
       <Slider label="Roughness" min={0} max={1} value={merged.roughness} onChange={(roughness) => applyOps([{ op: "set_material", target_id: obj.id, params: { patch: { roughness } } }], `Roughness ${obj.name}`)} />
       <Slider label="Metallic" min={0} max={1} value={merged.metallic} onChange={(metallic) => applyOps([{ op: "set_material", target_id: obj.id, params: { patch: { metallic } } }], `Metallic ${obj.name}`)} />
-      <p className="text-[10px] leading-relaxed text-neutral-500">
-        Overrides are stored per object; the shared material in the library is untouched.
-      </p>
+      <p className="text-[10px] leading-relaxed text-neutral-500">Overrides are stored per object; the shared library material is untouched.</p>
     </section>
   );
 }
@@ -115,6 +88,7 @@ const HAIR_STYLES = ["hair.short_crop", "hair.short_tousled", "hair.buzz", "hair
 
 function CharacterSection({ obj }: { obj: SceneObject }) {
   const applyOps = useStudio((s) => s.applyOps);
+  const mode = useStudio((s) => s.mode);
   const c = obj.character;
   if (!c) return <p className="text-2xs text-neutral-500">This character has no character state; attach a rig profile.</p>;
 
@@ -124,10 +98,7 @@ function CharacterSection({ obj }: { obj: SceneObject }) {
   return (
     <div className="space-y-4">
       <section className="space-y-2">
-        <SectionTitle hint="identity">Appearance</SectionTitle>
-        <Field label="Identity id">
-          <TextInput value={c.identity_id} readOnly className="font-mono text-2xs" />
-        </Field>
+        <SectionTitle hint={c.age_band}>Appearance</SectionTitle>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Age band">
             <Select
@@ -137,15 +108,9 @@ function CharacterSection({ obj }: { obj: SceneObject }) {
             />
           </Field>
           <Field label="Height (m)">
-            <TextInput
-              type="number"
-              step={0.01}
-              value={c.proportions.height_m}
-              onChange={(e) => patch({ patch: { proportions: { height_m: Number(e.target.value) } } })}
-            />
+            <TextInput type="number" step={0.01} value={c.proportions.height_m} onChange={(e) => patch({ patch: { proportions: { height_m: Number(e.target.value) } } })} />
           </Field>
         </div>
-        <p className="text-[10px] text-neutral-500">Identity lock: {c.identity_locked.join(", ") || "none"}</p>
       </section>
 
       <section className="space-y-2">
@@ -170,38 +135,31 @@ function CharacterSection({ obj }: { obj: SceneObject }) {
       <section className="space-y-2">
         <SectionTitle hint="blend shapes">Face &amp; expression</SectionTitle>
         {Object.entries({ mouth_smile: c.expression.mouth_smile ?? 0, brow_neutral: c.expression.brow_neutral ?? 0, jaw_open: c.expression.jaw_open ?? 0 }).map(([shape, value]) => (
-          <Slider
-            key={shape}
-            label={shape.replace(/_/g, " ")}
-            min={0}
-            max={1}
-            value={value}
-            onChange={(v) => patch({ patch: { expression: { [shape]: v } } })}
-          />
+          <Slider key={shape} label={shape.replace(/_/g, " ")} min={0} max={1} value={value} onChange={(v) => patch({ patch: { expression: { [shape]: v } } })} />
         ))}
       </section>
 
-      <section className="space-y-2">
-        <SectionTitle hint="wardrobe">Clothing</SectionTitle>
-        <ul className="space-y-1">
-          {c.wardrobe.map((item, i) => (
-            <li key={`${item.garment_id}-${i}`} className="flex items-center gap-2 text-2xs text-neutral-300">
-              <span className="h-3 w-3 rounded-full border border-studio-700" style={{ background: item.color }} />
-              <span className="truncate">{item.garment_id}</span>
-              <span className="ml-auto font-mono text-neutral-500">{item.material_id ?? "inline"}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="space-y-1">
-        <SectionTitle hint="rig">Rigging</SectionTitle>
-        <p className="text-2xs text-neutral-400">Rig: <span className="font-mono">{c.pose.rig_id}</span></p>
-        <p className="text-2xs text-neutral-400">Bone overrides: {Object.keys(c.pose.bone_rotations).length}</p>
-        <p className="text-[10px] leading-relaxed text-neutral-500">
-          Skeleton editing is handled by the animation studio; this panel edits the resolved pose values.
-        </p>
-      </section>
+      {mode === "professional" ? (
+        <>
+          <section className="space-y-2">
+            <SectionTitle hint="wardrobe">Clothing</SectionTitle>
+            <ul className="space-y-1">
+              {c.wardrobe.map((item, i) => (
+                <li key={`${item.garment_id}-${i}`} className="flex items-center gap-2 text-2xs text-neutral-300">
+                  <span className="h-3 w-3 rounded-full border border-studio-700" style={{ background: item.color }} />
+                  <span className="truncate">{item.garment_id}</span>
+                  <span className="ml-auto font-mono text-neutral-500">{item.material_id ?? "inline"}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section className="space-y-1">
+            <SectionTitle hint="rig">Rigging</SectionTitle>
+            <p className="text-2xs text-neutral-400">Rig: <span className="font-mono">{c.pose.rig_id}</span></p>
+            <p className="text-2xs text-neutral-400">Identity lock: <span className="font-mono">{c.identity_locked.join(", ") || "none"}</span></p>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -249,56 +207,48 @@ function LightSection({ obj }: { obj: SceneObject }) {
   const set = (patch: Record<string, unknown>) => applyOps([{ op: "set_light", target_id: obj.id, params: { patch: patch as never } }], `Light ${obj.name}`);
 
   return (
-    <div className="space-y-4">
-      <section className="space-y-2">
-        <SectionTitle hint={light.role}>Light</SectionTitle>
-        <Field label="Type">
-          <Select value={light.kind} options={["point", "spot", "sun", "area"].map((v) => ({ value: v, label: v }))} onChange={(e) => set({ kind: e.target.value })} />
-        </Field>
-        <Slider label="Intensity" min={0} max={1000} step={1} value={light.intensity_watts} format={(v) => `${v} W`} onChange={(intensity_watts) => set({ intensity_watts })} />
-        <Slider label="Softness" min={0} max={1} value={light.softness} onChange={(softness) => set({ softness })} />
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            aria-label="Light colour"
-            value={light.color}
-            onChange={(e) => set({ color: e.target.value })}
-            className="h-7 w-10 cursor-pointer rounded border border-studio-700 bg-studio-950"
-          />
-          <span className="font-mono text-2xs text-neutral-400">{light.color}</span>
-        </div>
-        <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => set({ shadows })} />
-        <VectorField label="Direction" value={light.direction} onChange={(direction) => set({ direction })} />
-      </section>
-    </div>
+    <section className="space-y-2">
+      <SectionTitle hint={light.role}>Light</SectionTitle>
+      <Field label="Type">
+        <Select value={light.kind} options={["point", "spot", "sun", "area"].map((v) => ({ value: v, label: v }))} onChange={(e) => set({ kind: e.target.value })} />
+      </Field>
+      <Slider label="Intensity" min={0} max={1000} step={1} value={light.intensity_watts} format={(v) => `${v} W`} onChange={(intensity_watts) => set({ intensity_watts })} />
+      <Slider label="Softness" min={0} max={1} value={light.softness} onChange={(softness) => set({ softness })} />
+      <div className="flex items-center gap-2">
+        <input type="color" aria-label="Light colour" value={light.color} onChange={(e) => set({ color: e.target.value })} className="h-7 w-10 cursor-pointer rounded border border-studio-700 bg-studio-950" />
+        <span className="font-mono text-2xs text-neutral-400">{light.color}</span>
+      </div>
+      <Toggle label="Cast shadows" checked={light.shadows} onChange={(shadows) => set({ shadows })} />
+      <VectorField label="Direction" value={light.direction} onChange={(direction) => set({ direction })} />
+    </section>
   );
 }
 
 function EnvironmentSection() {
   const scene = useStudio((s) => s.scene);
   const applyOps = useStudio((s) => s.applyOps);
+  const patchEnvironment = useStudio((s) => s.patchEnvironment);
   const env = scene.environment;
-  const set = (patch: Record<string, unknown>) => applyOps([{ op: "set_environment", target_id: null, params: { patch: patch as never } }], "Edit environment");
 
   return (
     <div className="space-y-4">
       <section className="space-y-2">
         <SectionTitle hint={env.preset_id}>Environment</SectionTitle>
         <Field label="Kind">
-          <Select value={env.kind} options={["interior", "exterior", "studio", "abstract"].map((v) => ({ value: v, label: v }))} onChange={(e) => set({ kind: e.target.value })} />
+          <Select value={env.kind} options={["interior", "exterior", "studio", "abstract"].map((v) => ({ value: v, label: v }))} onChange={(e) => patchEnvironment({ kind: e.target.value as never }, "Environment kind")} />
         </Field>
         <Field label="Time of day">
           <Select
             value={env.time_of_day}
             options={["dawn", "morning", "noon", "afternoon", "sunset", "dusk", "night"].map((v) => ({ value: v, label: v }))}
-            onChange={(e) => set({ time_of_day: e.target.value })}
+            onChange={(e) => patchEnvironment({ time_of_day: e.target.value as never }, "Time of day")}
           />
         </Field>
         <Field label="Weather">
           <Select
             value={env.weather}
             options={["clear", "cloudy", "overcast", "rain", "snow", "fog", "storm"].map((v) => ({ value: v, label: v }))}
-            onChange={(e) => set({ weather: e.target.value })}
+            onChange={(e) => patchEnvironment({ weather: e.target.value as never }, "Weather")}
           />
         </Field>
         <Field label="Global style">
@@ -316,13 +266,13 @@ function EnvironmentSection() {
             type="color"
             aria-label="Sky colour"
             value={env.sky.color}
-            onChange={(e) => set({ sky: { ...env.sky, color: e.target.value } })}
+            onChange={(e) => patchEnvironment({ sky: { ...env.sky, color: e.target.value } }, "Sky colour")}
             className="h-7 w-10 cursor-pointer rounded border border-studio-700 bg-studio-950"
           />
           <span className="font-mono text-2xs text-neutral-400">{env.sky.color}</span>
         </div>
-        <Slider label="Fog density" min={0} max={1} value={env.atmosphere.fog_density} onChange={(fog_density) => set({ atmosphere: { ...env.atmosphere, fog_density } })} />
-        <Slider label="Vegetation" min={0} max={1} value={env.vegetation_density} onChange={(vegetation_density) => set({ vegetation_density })} />
+        <Slider label="Fog density" min={0} max={1} value={env.atmosphere.fog_density} onChange={(fog_density) => patchEnvironment({ atmosphere: { ...env.atmosphere, fog_density } }, "Fog")} />
+        <Slider label="Vegetation" min={0} max={1} value={env.vegetation_density} onChange={(vegetation_density) => patchEnvironment({ vegetation_density }, "Vegetation")} />
       </section>
     </div>
   );
@@ -330,16 +280,13 @@ function EnvironmentSection() {
 
 function SceneSection() {
   const scene = useStudio((s) => s.scene);
-  const applyOps = useStudio((s) => s.applyOps);
+  const patchSettings = useStudio((s) => s.patchSettings);
   const stats = useMemo(() => sceneStats(scene), [scene]);
 
   return (
     <div className="space-y-4">
       <section className="space-y-2">
         <SectionTitle hint="document">Scene</SectionTitle>
-        <Field label="Name">
-          <TextInput value={scene.name} readOnly className="text-2xs" />
-        </Field>
         <dl className="grid grid-cols-2 gap-1 text-2xs text-neutral-400">
           <div><dt className="inline text-neutral-500">Revision: </dt><dd className="inline font-mono">{scene.revision}</dd></div>
           <div><dt className="inline text-neutral-500">Schema: </dt><dd className="inline font-mono">{scene.schema_version}</dd></div>
@@ -350,20 +297,42 @@ function SceneSection() {
         </dl>
       </section>
       <section className="space-y-2">
-        <SectionTitle hint="render">Output</SectionTitle>
+        <SectionTitle hint="output">Render settings</SectionTitle>
         <Field label="Engine">
           <Select
             value={scene.settings.render_engine}
-            options={[{ value: "eevee", label: "EEVEE (preview)" }, { value: "cycles", label: "Cycles (final)" }]}
-            onChange={(e) => applyOps([], `Render engine ${e.target.value}`)}
+            options={[
+              { value: "eevee", label: "EEVEE (preview)" },
+              { value: "cycles", label: "Cycles (final)" },
+            ]}
+            onChange={(e) => patchSettings({ render_engine: e.target.value as never }, "Render engine")}
           />
         </Field>
+        <Field label="Frame rate">
+          <Select
+            value={String(scene.settings.fps)}
+            options={[24, 25, 30, 60].map((v) => ({ value: String(v), label: `${v} fps` }))}
+            onChange={(e) => patchSettings({ fps: Number(e.target.value) as never }, "Frame rate")}
+          />
+        </Field>
+        <Field label="Resolution">
+          <Select
+            value={`${scene.settings.resolution.width}x${scene.settings.resolution.height}`}
+            options={["1280x720", "1920x1080", "2560x1440", "3840x2160"].map((v) => ({ value: v, label: v }))}
+            onChange={(e) => {
+              const [width, height] = e.target.value.split("x").map(Number);
+              patchSettings({ resolution: { width: width ?? 1920, height: height ?? 1080 } }, "Resolution");
+            }}
+          />
+        </Field>
+        <Slider label="Duration (frames)" min={24} max={1200} step={24} value={scene.settings.duration_frames} format={(v) => `${v} (${(v / scene.settings.fps).toFixed(1)}s)`} onChange={(duration_frames) => patchSettings({ duration_frames }, "Duration")} />
+        <Slider label="Samples" min={8} max={512} step={8} value={scene.settings.samples} format={(v) => `${v}`} onChange={(samples) => patchSettings({ samples }, "Samples")} />
+        <Toggle label="Denoise" checked={scene.settings.denoise} onChange={(denoise) => patchSettings({ denoise }, "Denoise")} />
+        <Toggle label="Motion blur" checked={scene.settings.motion_blur} onChange={(motion_blur) => patchSettings({ motion_blur }, "Motion blur")} />
         <p className="text-[10px] leading-relaxed text-neutral-500">
-          Resolution {scene.settings.resolution.width}×{scene.settings.resolution.height}, {scene.settings.fps} fps,{" "}
-          {scene.settings.duration_frames} frames. Engine and sample changes are applied by the render service, not the viewport.
+          These values travel to the render worker with the scene. The viewport preview ignores samples and motion blur — it
+          shows lighting and framing only.
         </p>
-        <Toggle label="Denoise" checked={scene.settings.denoise} onChange={() => applyOps([], "Toggle denoise")} />
-        <Toggle label="Motion blur" checked={scene.settings.motion_blur} onChange={() => applyOps([], "Toggle motion blur")} />
       </section>
       <section className="space-y-1">
         <SectionTitle>Shots</SectionTitle>
@@ -380,23 +349,85 @@ function SceneSection() {
   );
 }
 
+function AnimationSection({ obj }: { obj: SceneObject }) {
+  const scene = useStudio((s) => s.scene);
+  const frame = useStudio((s) => s.frame);
+  const applyOps = useStudio((s) => s.applyOps);
+  const clips = scene.animations.filter((c) => c.target_id === obj.id);
+
+  function keyframeHere() {
+    const existing = clips.find((c) => c.kind === "transform");
+    const ops = [];
+    if (!existing) {
+      ops.push({
+        op: "add_animation" as const,
+        target_id: obj.id,
+        params: {
+          clip: {
+            name: `${obj.name} motion`,
+            kind: "transform" as const,
+            start_frame: 0,
+            end_frame: Math.max(frame + 24, 48),
+            loop: false,
+            source: { kind: "manual" as const, model_id: null },
+            tracks: [],
+          },
+        },
+      });
+    }
+    ops.push({
+      op: "add_keyframe" as const,
+      target_id: obj.id,
+      params: {
+        clip_id: existing?.id ?? "",
+        channel: "transform.position",
+        frame: Math.round(frame),
+        value: obj.transform.position,
+      },
+    });
+    // When a clip was just created its id is unknown here, so re-read after the
+    // first operation lands.
+    if (!existing) {
+      applyOps([ops[0]!], `New clip for ${obj.name}`);
+      const created = useStudio.getState().scene.animations.filter((c) => c.target_id === obj.id && c.kind === "transform").at(-1);
+      if (created) {
+        applyOps(
+          [{ op: "add_keyframe", target_id: obj.id, params: { clip_id: created.id, channel: "transform.position", frame: Math.round(frame), value: obj.transform.position } }],
+          `Keyframe at ${Math.round(frame)}`,
+        );
+      }
+      return;
+    }
+    applyOps(ops, `Keyframe at ${Math.round(frame)}`);
+  }
+
+  return (
+    <section className="space-y-2">
+      <SectionTitle hint={clips.length ? `${clips.length} clip(s)` : "no clips"}>Animation</SectionTitle>
+      <Button size="sm" variant="subtle" className="w-full" onClick={keyframeHere}>
+        Keyframe position at frame {Math.round(frame)}
+      </Button>
+      <ul className="space-y-0.5">
+        {clips.map((clip) => (
+          <li key={clip.id} className="flex justify-between gap-2 text-[10px] text-neutral-400">
+            <span className="truncate">{clip.name}</span>
+            <span className="font-mono text-neutral-600">{clip.start_frame}–{clip.end_frame}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function Inspector() {
   const scene = useStudio((s) => s.scene);
   const selection = useStudio((s) => s.selection);
+  const mode = useStudio((s) => s.mode);
   const applyOps = useStudio((s) => s.applyOps);
   const obj = scene.objects.find((o) => o.id === selection[0]) ?? null;
 
-  const index = useMemo(() => {
-    const map = new Map<string, string>();
-    const walk = (id: string | null, prefix: string) => {
-      for (const o of scene.objects.filter((x) => x.parent_id === id)) {
-        map.set(o.id, `${prefix}${o.name}`);
-        walk(o.id, `${prefix}${o.name} / `);
-      }
-    };
-    walk(null, "");
-    return map;
-  }, [scene.objects]);
+  const index = useMemo(() => indexScene(scene), [scene]);
+  const path = obj ? objectPath(index, obj.id) : null;
 
   if (!obj) {
     return (
@@ -416,9 +447,7 @@ export function Inspector() {
           <h2 className="truncate text-sm font-medium text-neutral-100">{obj.name}</h2>
           <Badge tone="neutral">{obj.type.replace("_", " ")}</Badge>
         </div>
-        <p className="truncate text-[10px] text-neutral-500" title={objectPath({ byId: new Map(scene.objects.map((o) => [o.id, o])), children: new Map(), roots: [] }, obj.id)}>
-          {index.get(obj.id) ?? obj.name}
-        </p>
+        <p className="truncate text-[10px] text-neutral-500" title={path ?? obj.name}>{path}</p>
         <div className="flex flex-wrap items-center gap-1">
           <button type="button" onClick={() => applyOps([{ op: "set_locked", target_id: obj.id, params: { locked: !obj.locked } }], "Toggle lock")} className="rounded border border-studio-700 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-studio-800">
             {obj.locked ? "Unlock" : "Lock"}
@@ -426,14 +455,7 @@ export function Inspector() {
           <button type="button" onClick={() => applyOps([{ op: "set_visibility", target_id: obj.id, params: { visible: !obj.visible } }], "Toggle visibility")} className="rounded border border-studio-700 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-studio-800">
             {obj.visible ? "Hide" : "Show"}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              const select = useStudio.getState().selectSubtree;
-              select(obj.id);
-            }}
-            className="rounded border border-studio-700 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-studio-800"
-          >
+          <button type="button" onClick={() => useStudio.getState().selectSubtree(obj.id)} className="rounded border border-studio-700 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-studio-800">
             Select subtree
           </button>
           <span className="ml-auto font-mono text-[10px] text-neutral-600">v{obj.version}</span>
@@ -459,20 +481,27 @@ export function Inspector() {
       )}
 
       <div className="my-3 border-t border-studio-800" />
-      <section className="space-y-1">
-        <SectionTitle hint={obj.geometry.kind}>Object</SectionTitle>
-        <dl className="grid grid-cols-2 gap-1 text-2xs text-neutral-400">
-          <div><dt className="inline text-neutral-500">Parent: </dt><dd className="inline">{scene.objects.find((o) => o.id === obj.parent_id)?.name ?? "root"}</dd></div>
-          <div><dt className="inline text-neutral-500">Tags: </dt><dd className="inline">{obj.tags.join(", ") || "—"}</dd></div>
-          <div className="col-span-2"><dt className="inline text-neutral-500">Id: </dt><dd className="inline font-mono">{obj.id}</dd></div>
-        </dl>
-        {obj.geometry.kind === "asset" || obj.geometry.kind === "procedural" ? (
-          <p className="rounded border border-amber-400/20 bg-amber-400/5 p-1.5 text-[10px] leading-relaxed text-amber-200">
-            This object uses {obj.geometry.kind === "asset" ? "an external asset" : "a procedural generator"}. The viewport shows a
-            proxy box; attach the real mesh in Assets to see it.
-          </p>
-        ) : null}
-      </section>
+      <AnimationSection obj={obj} />
+
+      {mode === "professional" ? (
+        <>
+          <div className="my-3 border-t border-studio-800" />
+          <section className="space-y-1">
+            <SectionTitle hint={obj.geometry.kind}>Object</SectionTitle>
+            <dl className="grid grid-cols-2 gap-1 text-2xs text-neutral-400">
+              <div><dt className="inline text-neutral-500">Parent: </dt><dd className="inline">{scene.objects.find((o) => o.id === obj.parent_id)?.name ?? "root"}</dd></div>
+              <div><dt className="inline text-neutral-500">Tags: </dt><dd className="inline">{obj.tags.join(", ") || "—"}</dd></div>
+              <div className="col-span-2"><dt className="inline text-neutral-500">Id: </dt><dd className="inline font-mono">{obj.id}</dd></div>
+            </dl>
+            {obj.geometry.kind === "asset" || obj.geometry.kind === "procedural" ? (
+              <p className="rounded border border-amber-400/20 bg-amber-400/5 p-1.5 text-[10px] leading-relaxed text-amber-200">
+                This object uses {obj.geometry.kind === "asset" ? "an external asset" : "a procedural generator"}. The viewport shows a
+                proxy box; attach the real mesh in Assets to see it.
+              </p>
+            ) : null}
+          </section>
+        </>
+      ) : null}
     </div>
   );
 }
