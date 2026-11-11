@@ -402,6 +402,35 @@ def plan_edit(prompt: str, scene: dict[str, Any], scope: list[str] | None = None
             add_target(target, f'action "{clip_id}"', 0.65)
             warnings.append(f'"{clip_id}" is a procedural placeholder clip; attach a motion-model clip for production.')
 
+    # --- add a prop ----------------------------------------------------------
+    # "put a vase on the table", "add a chair", "create a lamp"
+    add_match = re.search(r"\b(?:add|create|put|place|insert|spawn)\s+(?:a\s+|an\s+|the\s+)?([a-z0-9 _-]{3,30})", lower)
+    if add_match and not replace_match:
+        noun = re.split(r"\s+(?:on|in|at|near|next|beside|to)\b", add_match.group(1).strip())[0].strip()
+        existing, _score = _resolve(scoped, noun)
+        if existing is not None:
+            warnings.append(f'"{noun}" already exists as "{existing["name"]}"; select it instead of adding a duplicate.')
+            add_target(existing, "already in the scene", 0.7)
+        else:
+            label = re.sub(r"\b\w", lambda m: m.group(0).upper(), noun)
+            operations.append(
+                {
+                    "op": "add_object",
+                    "target_id": None,
+                    "params": {
+                        "object": {
+                            "name": label,
+                            "type": "prop",
+                            "geometry": {"kind": "primitive", "primitive": "box", "params": {"width": 0.2, "height": 0.2, "depth": 0.2}},
+                            "tags": ["prop", "ai_added"],
+                            "transform": {"position": [0.4, 0.8, -0.6]},
+                        },
+                        "parent_id": None,
+                    },
+                }
+            )
+            warnings.append(f'"{label}" is a placeholder box; attach a real asset in Assets to refine it.')
+
     # --- visibility / delete -------------------------------------------------
     if re.search(r"\b(hide|show|unhide)\b", lower):
         noun = _noun_after(lower, ["hide", "show", "unhide"])
