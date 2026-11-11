@@ -1,14 +1,43 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Badge, Button, Field, Select, TextInput, Toggle } from "@ai3d/ui";
 import { AppShell } from "@/components/AppShell";
 import { apiBaseUrl, gpuJobsEnabled, isApiConfigured, productName, segmentationEnabled, supportEmail } from "@/lib/product";
 import { useStudio } from "@/lib/store";
 
+const PREFS_KEY = "ai3d.prefs";
+
 export default function SettingsPage() {
   const mode = useStudio((s) => s.mode);
   const setMode = useStudio((s) => s.setMode);
   const notify = useStudio((s) => s.notify);
+  const [crashReports, setCrashReports] = useState(true);
+  const [trainingOptIn, setTrainingOptIn] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PREFS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { crashReports?: boolean; trainingOptIn?: boolean };
+        setCrashReports(parsed.crashReports ?? true);
+        setTrainingOptIn(parsed.trainingOptIn ?? false);
+      }
+    } catch {
+      /* storage blocked */
+    }
+  }, []);
+
+  function savePrefs(next: { crashReports?: boolean; trainingOptIn?: boolean }) {
+    const merged = { crashReports, trainingOptIn, ...next };
+    setCrashReports(merged.crashReports);
+    setTrainingOptIn(merged.trainingOptIn);
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(merged));
+    } catch {
+      notify("Browser storage is blocked; the preference was not saved", "warning");
+    }
+  }
 
   return (
     <AppShell title="Settings" subtitle="Workspace, branding and integration status">
@@ -78,8 +107,20 @@ export default function SettingsPage() {
         <section className="rounded-xl border border-studio-800 bg-studio-900/60 p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Privacy controls</h2>
           <div className="mt-2">
-            <Toggle label="Allow my projects to be used for model improvement" checked={false} onChange={() => notify("Consent is recorded per project in the audit log; this build has no training pipeline.", "info")} />
-            <Toggle label="Send anonymous crash reports" checked onChange={() => undefined} />
+            <Toggle
+              label="Allow my projects to be used for model improvement"
+              checked={trainingOptIn}
+              onChange={(next) => {
+                savePrefs({ trainingOptIn: next });
+                notify(
+                  next
+                    ? "Recorded locally. With an API, consent is written to the audit log per project."
+                    : "Opted out. No project of yours will be used for training.",
+                  next ? "warning" : "success",
+                );
+              }}
+            />
+            <Toggle label="Send anonymous crash reports" checked={crashReports} onChange={(next) => savePrefs({ crashReports: next })} />
           </div>
           <p className="mt-2 text-[10px] leading-relaxed text-neutral-500">
             Consent defaults to off and is revocable. No customer project is used for training without an explicit, logged opt-in.
